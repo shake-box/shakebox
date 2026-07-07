@@ -1,8 +1,9 @@
 # Shakebox 🎱
 
-A magic 8-ball for your family's own toys. A kid shakes the device (or taps the
-ball), the suspense builds, and Shakebox picks one toy from your family's list
-to go play with. A grown-up manages that toy list behind a quiet ⚙ button.
+A magic 8-ball for your family's own toys. Shake the device (or tap the ball),
+the suspense builds, and Shakebox picks one toy from your family's list to go
+play with. The toy list is one tap away behind the "Toys" button, and anyone can
+manage it.
 
 Shakebox is a tiny web app that runs entirely in the browser. **There is no
 account, no server, and nothing leaves the device.** After the first visit it
@@ -11,21 +12,26 @@ normal app.
 
 ---
 
-## The two modes
+## How it works
 
-**Kid mode** (what you see by default)
+**Shaking (the home screen)**
 - The ball breathes gently. Tap it — or shake the phone — and it rattles, then
   reveals a random toy from your list.
-- "Go play" sends the kid off; "Shake again" picks another.
-- If the toy list is empty it says *"Ask a grown-up to load the toy vault."*
+- "Go play" returns home; "Shake again" (or another shake of the phone) picks
+  another.
+- If the toy list is empty it invites you to *"Add some toys to get started."*
 
-**Parent mode** (tap the ⚙ in the top-left corner)
+**The toy list (tap "Toys" in the top-left corner)**
 - **Toy vault** — add, rename, pause, or delete toys. Paused toys stay in the
   list but won't be picked.
 - **Add a toy** — tap toys from the starter pack, or type your own; Shakebox
   guesses a matching emoji.
-- **Settings** — turn sound on/off, set an optional parent PIN, and back up or
-  restore your toy list.
+- **Settings** — turn sound on/off, optionally lock the toy list, and back up or
+  restore it.
+
+Anyone can shake *and* manage the list — there's no separate "kid" and "grown-up"
+setup. If you'd rather keep the list from being changed, turn on the optional
+lock (below).
 
 ---
 
@@ -46,11 +52,11 @@ photos/files folder). To bring a list back — new phone, wiped browser, or a
 mistake — use *Settings → Restore backup* and pick that file. Shakebox will tell
 you how many toys it restored.
 
-After 10 or so changes, Shakebox gently reminds you to download a fresh backup.
-
-The optional **parent PIN** just keeps kids out of the toy vault. It is not
-security — it's a speed bump. If you forget it, press and hold *"Forgot PIN"* for
-5 seconds and type `RESET`; that clears the PIN only and never touches your toys.
+The optional **toy-list lock** (Settings → "Lock the toy list") requires a PIN
+to open the list, for families who'd rather it not be changed. It's off by
+default, and it's a speed bump, not real security. If you forget the PIN, press
+and hold *"Forgot PIN"* for 5 seconds and type `RESET`; that clears the PIN only
+and never touches your toys.
 
 ---
 

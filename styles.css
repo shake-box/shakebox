@@ -73,7 +73,6 @@ button{font-family:inherit;}
   /* sit above the full-screen .center-stack so corner taps reach the buttons */
   z-index:20;
 }
-.corner-btn.left{left:16px;color:rgba(20,22,31,.4);font-size:20px;}
 .corner-btn.right{right:16px;color:rgba(20,22,31,.5);}
 
 .center-stack{
@@ -83,23 +82,30 @@ button{font-family:inherit;}
 .hint{font-size:19px;font-weight:500;color:rgba(20,22,31,.55);}
 .hint.dim{color:rgba(20,22,31,.45);letter-spacing:.02em;}
 
-/* one-time coach mark pointing at the ⚙ (shown once, after onboarding) */
-.coach{
-  position:absolute;z-index:70;
-  top:calc(70px + env(safe-area-inset-top));left:14px;
-  max-width:230px;background:var(--ink);color:#fff;
-  font-size:13.5px;font-weight:500;line-height:1.32;
-  padding:10px 13px;border-radius:12px;
-  box-shadow:0 12px 28px -10px rgba(20,22,31,.5);
-  animation:coachin .3s ease both;
+/* open, visible entry to the toy list (top-left pill) */
+.toys-btn{
+  position:absolute;z-index:20;
+  top:calc(16px + env(safe-area-inset-top));left:14px;
+  display:inline-flex;align-items:center;gap:7px;
+  height:44px;padding:0 15px 0 13px;
+  background:#fff;border:1px solid rgba(20,22,31,.1);border-radius:22px;
+  color:rgba(20,22,31,.72);font-family:'Schibsted Grotesk',sans-serif;font-size:15px;font-weight:600;
+  cursor:pointer;box-shadow:0 4px 12px -6px rgba(20,22,31,.28);
+  transition:transform .12s,border-color .12s;
 }
-.coach::before{
-  content:'';position:absolute;top:-5px;left:22px;width:12px;height:12px;
-  background:var(--ink);border-radius:2px;transform:rotate(45deg);
+.toys-btn:hover{transform:translateY(-1px);border-color:rgba(36,64,240,.35);}
+.toys-btn:active{transform:translateY(0);}
+.toys-btn__ico{display:flex;color:var(--oracle);}
+
+/* labeled back button: chevron + destination name */
+.backbtn.labeled{
+  width:auto;height:40px;padding:0 10px 0 6px;gap:2px;
+  display:inline-flex;align-items:center;border-radius:12px;
+  color:rgba(20,22,31,.6);font-family:'Schibsted Grotesk',sans-serif;font-size:16px;font-weight:600;
 }
-.coach.leaving{animation:coachout .4s ease both;}
-@keyframes coachin{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
-@keyframes coachout{from{opacity:1;}to{opacity:0;transform:translateY(-6px);}}
+.backbtn.labeled:hover{color:var(--oracle);}
+.backbtn__ico{display:flex;}
+.backbtn__label{line-height:1;}
 
 /* ============================== the 8-ball ============================== */
 .ball{
@@ -268,6 +274,7 @@ button{font-family:inherit;}
 }
 .btn-ghost:hover{background:rgba(255,255,255,.18);}
 .btn-ghost:focus-visible{box-shadow:0 0 0 3px rgba(255,255,255,.55);}
+.reveal__shakehint{text-align:center;margin-top:4px;font-size:13px;font-weight:500;color:rgba(255,255,255,.72);}
 
 /* ============================== PIN gate ============================== */
 .pin{padding-top:env(safe-area-inset-top);}
@@ -301,8 +308,9 @@ button{font-family:inherit;}
 
 /* ============================== toy vault ============================== */
 .vault{padding-top:env(safe-area-inset-top);}
-.vault__head{padding:20px 16px 6px;flex:none;}
+.vault__head{padding:16px 12px 6px;flex:none;}
 .vault__head-row{display:flex;align-items:center;gap:8px;}
+.vault__titlebar{display:flex;align-items:baseline;gap:8px;margin:8px 4px 0;}
 .vault__title{font-family:'Unbounded',sans-serif;font-weight:700;font-size:19px;}
 .vault__count{font-size:14px;color:rgba(20,22,31,.42);font-weight:500;}
 .icon-btn{
@@ -429,8 +437,9 @@ button{font-family:inherit;}
 
 /* ============================== settings ============================== */
 .settings{padding-top:env(safe-area-inset-top);}
-.settings__head{padding:20px 16px 12px;flex:none;}
+.settings__head{padding:16px 12px 10px;flex:none;}
 .settings__head-row{display:flex;align-items:center;gap:8px;}
+.settings__titlebar{margin:8px 4px 0;}
 .settings__title{font-family:'Unbounded',sans-serif;font-weight:700;font-size:19px;}
 .settings__body{padding:4px 20px calc(24px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:20px;overflow-y:auto;}
 .card{background:#fff;border:1px solid rgba(20,22,31,.08);border-radius:16px;overflow:hidden;}
@@ -517,7 +526,7 @@ button{font-family:inherit;}
 /* ======================= reduced-motion ======================= */
 @media (prefers-reduced-motion: reduce){
   .ball.breathe,.ball.wobbling,.token.float,.reveal__grain,.reveal__confetti,
-  .bgvibe,.reveal.flood,.token.pop,.coach,.coach.leaving{animation:none !important;}
+  .bgvibe,.reveal.flood,.token.pop{animation:none !important;}
   .ball.wobbling{filter:none;}
   .switch__knob{transition:none;}
 }

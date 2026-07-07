@@ -10,6 +10,7 @@
   var DATA_VERSION = 1;
   var PIN_LENGTH = 4;
   var UNDO_MS = 5000;
+  var REVEAL_ARM_MS = 1100; // after a reveal lands, wait this long before a shake can re-roll
 
   var seed = window.SHAKEBOX_SEED || { CATEGORIES: [], STARTER_TOYS: [], EMOJI_KEYWORDS: [] };
 
@@ -27,7 +28,6 @@
       toys: [],
       mutationsSinceExport: 0,
       lastExportAt: null,
-      hints: { manageToysShown: false },
     };
   }
 
@@ -65,8 +65,6 @@
     if (!("pin" in parsed.settings)) parsed.settings.pin = null;
     if (typeof parsed.mutationsSinceExport !== "number") parsed.mutationsSinceExport = 0;
     if (!("lastExportAt" in parsed)) parsed.lastExportAt = null;
-    if (!parsed.hints || typeof parsed.hints !== "object") parsed.hints = { manageToysShown: false };
-    if (typeof parsed.hints.manageToysShown !== "boolean") parsed.hints.manageToysShown = false;
     return { data: parsed, wasFresh: false };
   }
 
@@ -156,6 +154,7 @@
     plus: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>',
     del: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 5H8L2 12l6 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"></path><path d="M14 9l-4 6M10 9l4 6"></path></svg>',
     chevron: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>',
+    toys: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.6"></rect><rect x="14" y="3" width="7" height="7" rx="1.6"></rect><rect x="3" y="14" width="7" height="7" rx="1.6"></rect><rect x="14" y="14" width="7" height="7" rx="1.6"></rect></svg>',
     check: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>',
     edit: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>',
     trash: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"></path></svg>',
@@ -172,7 +171,7 @@
     if (opts.empty) cls += " empty-ball";
     var winChildren;
     if (opts.empty) {
-      winChildren = h("div", { class: "empty-tri" }, h("span", { text: "Ask a grown-up to load the toy vault" }));
+      winChildren = h("div", { class: "empty-tri" }, h("span", { text: "Add some toys to get started" }));
     } else {
       winChildren = h("span", { class: "ball__eight" }, "8");
     }
@@ -266,6 +265,7 @@
       typeof DeviceMotionEvent.requestPermission === "function";
   }
   var motionAttached = false;
+  var motionSeen = false; // true once we actually receive accelerometer data (real device)
   var lastAcc = null;
   var strongTimes = [];
   var motionCooldownUntil = 0;
@@ -275,17 +275,21 @@
       ? ev.acceleration
       : ev.accelerationIncludingGravity;
     if (!a) return;
+    motionSeen = true; // this device actually has a motion sensor
     if (lastAcc) {
       var delta = Math.abs((a.x || 0) - lastAcc.x) + Math.abs((a.y || 0) - lastAcc.y) + Math.abs((a.z || 0) - lastAcc.z);
-      var t = ev.timeStamp || performance.now();
-      if (delta > 14) strongTimes.push(t);
+      var now = performance.now();
+      if (delta > 14) strongTimes.push(now);
       // keep only the last ~1s of strong samples
-      var cutoff = t - 1000;
+      var cutoff = now - 1000;
       while (strongTimes.length && strongTimes[0] < cutoff) strongTimes.shift();
-      if (state.view === "idle" && activeToys().length > 0 &&
-          strongTimes.length >= 8 && t > motionCooldownUntil) {
+      // A vigorous, sustained shake re-rolls from the home screen OR the reveal
+      // (so "shake again" is a real shake on a phone). motionCooldownUntil gates
+      // both a fresh shake's own motion and the ~1s arming delay after a reveal.
+      if ((state.view === "idle" || state.view === "reveal") && activeToys().length > 0 &&
+          strongTimes.length >= 8 && now > motionCooldownUntil) {
         strongTimes = [];
-        motionCooldownUntil = t + 2500;
+        motionCooldownUntil = now + 2500;
         doShake();
       }
     }
@@ -333,6 +337,7 @@
       vibrate(90);
       playThunk();
       show("reveal");
+      motionCooldownUntil = performance.now() + REVEAL_ARM_MS; // arm shake-to-reroll
       return;
     }
     show("shaking");
@@ -345,6 +350,7 @@
       show("reveal");
       vibrate(90);
       playThunk();
+      motionCooldownUntil = performance.now() + REVEAL_ARM_MS; // arm shake-to-reroll
     }, 1800);
   }
 
@@ -417,8 +423,19 @@
 
   /* ============================== screen: chrome ============================== */
   function wordmark() { return h("div", { class: "wordmark" }, "SHAKEBOX"); }
-  function gearBtn() {
-    return h("button", { class: "corner-btn left", "aria-label": "Settings", onclick: openParent }, "⚙");
+  // Open, visible entry to the toy list (no longer a hidden "parent" door).
+  function toysBtn() {
+    return h("button", { class: "toys-btn", "aria-label": "Open the toy list", onclick: openParent }, [
+      h("span", { class: "toys-btn__ico", html: ICON.toys }),
+      h("span", {}, "Toys"),
+    ]);
+  }
+  // Labeled back button: chevron + the name of where it goes.
+  function backLabeled(label, onClick) {
+    return h("button", { class: "backbtn labeled", "aria-label": "Back to " + label, onclick: onClick }, [
+      h("span", { class: "backbtn__ico", html: ICON.back }),
+      h("span", { class: "backbtn__label", text: label }),
+    ]);
   }
   function soundBtn() {
     return h("button", {
@@ -435,7 +452,7 @@
   /* ============================== screen builders ============================== */
   function screenIdle() {
     return h("div", { class: "screen on" }, [
-      wordmark(), gearBtn(), soundBtn(),
+      wordmark(), toysBtn(), soundBtn(),
       h("div", { class: "center-stack" }, [
         ball({ tap: true, breathe: true, onTap: onBallTap }),
         h("div", { class: "hint" }, "Shake it"),
@@ -492,10 +509,12 @@
       ]),
     ]);
     children.push(h("div", { class: "reveal__stage" }, token));
-    children.push(h("div", { class: "reveal__actions" }, [
+    var actions = [
       h("button", { class: "btn-light", onclick: function () { show(kidEntry()); } }, "Go play"),
       h("button", { class: "btn-ghost", onclick: doShake }, "Shake again"),
-    ]));
+    ];
+    if (motionSeen) actions.push(h("div", { class: "reveal__shakehint" }, "or shake to try again"));
+    children.push(h("div", { class: "reveal__actions" }, actions));
     var reveal = h("div", { class: "reveal " + (reduced ? "xfade" : "flood") }, children);
     if (!reduced) {
       // token floats after its spring-in completes
@@ -506,13 +525,12 @@
 
   function screenEmpty() {
     return h("div", { class: "screen on" }, [
-      wordmark(),
-      h("button", { class: "corner-btn left", "aria-label": "Settings", onclick: openParent }, "⚙"),
+      wordmark(), toysBtn(), soundBtn(),
       h("div", { class: "center-stack", style: "gap:36px" }, [
         ball({ empty: true, breathe: true }),
         h("div", { class: "empty__actions" }, [
-          h("div", { class: "empty__sub" }, "The vault is empty."),
-          h("button", { class: "link-underline", onclick: openParent }, "I'm the grown-up"),
+          h("div", { class: "empty__sub" }, "No toys yet."),
+          h("button", { class: "link-underline", onclick: openParent }, "Add toys"),
         ]),
       ]),
     ]);
@@ -572,13 +590,13 @@
 
     return h("div", { class: "screen on flex pin" }, [
       h("div", { class: "pin__head" },
-        h("button", { class: "backbtn", "aria-label": "Back", onclick: function () { state.pinBuffer = ""; show(kidEntry()); }, html: ICON.back })),
+        backLabeled("Shakebox", function () { state.pinBuffer = ""; show(kidEntry()); })),
       h("div", { class: "pin__body" }, [
         h("div", { class: "pin__brand" }, "SHAKEBOX"),
-        h("div", { class: "pin__title" }, "Parents only"),
+        h("div", { class: "pin__title" }, "Locked"),
         h("div", { class: "pin__sub" }, "Enter your PIN"),
         h("div", { class: "pin__dots" + (state.pinShake ? " shake" : "") }, dots),
-        h("div", { class: "pin__note" }, "This keeps kids out. It isn't a bank vault."),
+        h("div", { class: "pin__note" }, "This locks the toy list. It isn't a bank vault."),
       ]),
       h("div", { class: "pinpad" }, h("div", { class: "pinpad__grid" }, keys)),
       forgotArea,
@@ -715,14 +733,17 @@
     var q = state.vaultSearch.trim().toLowerCase();
     var list = q ? toys.filter(function (t) { return t.name.toLowerCase().indexOf(q) !== -1; }) : toys;
 
-    var head = h("div", { class: "vault__head" },
+    var head = h("div", { class: "vault__head" }, [
       h("div", { class: "vault__head-row" }, [
-        h("button", { class: "backbtn sm", "aria-label": "Back", onclick: function () { closeRowMenu(); show(kidEntry()); }, html: ICON.back }),
-        h("div", { class: "vault__title" }, "Toy vault"),
-        h("div", { class: "vault__count" }, "· " + toys.length + " " + (toys.length === 1 ? "toy" : "toys")),
+        backLabeled("Shakebox", function () { closeRowMenu(); show(kidEntry()); }),
         h("div", { style: "flex:1" }),
         h("button", { class: "icon-btn", "aria-label": "Settings", onclick: function () { closeRowMenu(); show("settings"); } }, "⚙"),
-      ]));
+      ]),
+      h("div", { class: "vault__titlebar" }, [
+        h("div", { class: "vault__title" }, "Toy vault"),
+        h("div", { class: "vault__count" }, "· " + toys.length + " " + (toys.length === 1 ? "toy" : "toys")),
+      ]),
+    ]);
 
     var addBtn = h("div", { class: "vault__add" },
       h("button", { class: "btn-add", onclick: function () { openAddSheet(); } }, [icon("plus"), "Add a toy"]));
@@ -963,11 +984,11 @@
     var pinOn = !!data.settings.pin;
     var pinRow = h("div", { class: "row" }, [
       h("div", { class: "row__main" }, [
-        h("div", { class: "row__label" }, "Parent PIN"),
-        h("div", { class: "row__sub" }, "Optional — stops kids from editing the toy vault"),
+        h("div", { class: "row__label" }, "Lock the toy list"),
+        h("div", { class: "row__sub" }, "Optional — require a PIN to open it"),
       ]),
       h("button", {
-        class: "switch lg" + (pinOn || state.settingPin ? "" : " off"), "aria-label": "Toggle parent PIN",
+        class: "switch lg" + (pinOn || state.settingPin ? "" : " off"), "aria-label": "Toggle toy-list lock",
         onclick: function () {
           if (pinOn) { data.settings.pin = null; state.settingPin = false; save(); render(); }
           else { state.settingPin = !state.settingPin; state.pinSetBuffer = ""; render(); }
@@ -997,7 +1018,7 @@
     if (pinOn) {
       pinCard.appendChild(h("div", { class: "pin-actions" }, [
         h("button", { class: "alt", onclick: function () { data.settings.pin = null; state.settingPin = true; state.pinSetBuffer = ""; save(); render(); } }, "Change PIN"),
-        h("button", { class: "off", onclick: function () { data.settings.pin = null; save(); render(); } }, "Turn off PIN"),
+        h("button", { class: "off", onclick: function () { data.settings.pin = null; save(); render(); } }, "Turn off lock"),
       ]));
     }
 
@@ -1022,10 +1043,11 @@
       "Everything lives on this device only. Shakebox has no account and no server — your toy list never leaves this browser. Download a backup after big changes; one tap restores it.");
 
     return h("div", { class: "screen on flex settings" }, [
-      h("div", { class: "settings__head" }, h("div", { class: "settings__head-row" }, [
-        h("button", { class: "backbtn sm", "aria-label": "Back", onclick: function () { state.settingPin = false; show("vault"); }, html: ICON.back }),
-        h("div", { class: "settings__title" }, "Settings"),
-      ])),
+      h("div", { class: "settings__head" }, [
+        h("div", { class: "settings__head-row" },
+          backLabeled("Toy vault", function () { state.settingPin = false; show("vault"); })),
+        h("div", { class: "settings__titlebar" }, h("div", { class: "settings__title" }, "Settings")),
+      ]),
       h("div", { class: "settings__body" }, [pinCard, backupCard, note]),
     ]);
   }
@@ -1107,30 +1129,6 @@
     toastTimer = setTimeout(function () { if (bar.parentNode) bar.remove(); }, 2600);
   }
 
-  /* ============================ one-time coach mark ============================ */
-  // First time on the kid screen (which, for a fresh user, is right after
-  // onboarding), point out the quiet ⚙ so grown-ups can find their way back to
-  // the vault. Shown once per device, then never again.
-  function maybeCoachMark() {
-    if (data.hints.manageToysShown) return;
-    var mark = h("div", { class: "coach" }, "Add or manage toys here");
-    app.appendChild(mark);
-    data.hints.manageToysShown = true;
-    save();
-    var t;
-    function dismiss() {
-      clearTimeout(t);
-      document.removeEventListener("pointerdown", onTap, true);
-      mark.classList.add("leaving");
-      setTimeout(function () { if (mark.parentNode) mark.remove(); }, 400);
-    }
-    function onTap() { dismiss(); }
-    t = setTimeout(dismiss, 5000);
-    // delay the outside-tap listener a tick so the tap that navigated here
-    // doesn't instantly close it
-    setTimeout(function () { document.addEventListener("pointerdown", onTap, true); }, 60);
-  }
-
   /* =============================== master render =============================== */
   function render() {
     app.textContent = "";
@@ -1152,7 +1150,6 @@
     if (state.addOpen && (view === "vault" || view === "welcome")) {
       app.appendChild(addSheet());
     }
-    if (view === "idle" || view === "empty") maybeCoachMark();
     if (!storageOK) {
       app.appendChild(h("div", { class: "storage-warn" },
         "Can't save on this device — toys will be forgotten when you close the app."));
