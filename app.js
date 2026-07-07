@@ -28,6 +28,7 @@
       toys: [],
       mutationsSinceExport: 0,
       lastExportAt: null,
+      hints: { tapCoachShown: false },
     };
   }
 
@@ -65,6 +66,8 @@
     if (!("pin" in parsed.settings)) parsed.settings.pin = null;
     if (typeof parsed.mutationsSinceExport !== "number") parsed.mutationsSinceExport = 0;
     if (!("lastExportAt" in parsed)) parsed.lastExportAt = null;
+    if (!parsed.hints || typeof parsed.hints !== "object") parsed.hints = { tapCoachShown: false };
+    if (typeof parsed.hints.tapCoachShown !== "boolean") parsed.hints.tapCoachShown = false;
     return { data: parsed, wasFresh: false };
   }
 
@@ -186,10 +189,12 @@
         if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); opts.onTap(); }
       };
     }
-    return h("div", attrs, [
+    var kids = [
       h("div", { class: "ball__spec" }),
       h("div", { class: "ball__win" }, winChildren),
-    ]);
+    ];
+    if (opts.ripple) kids.unshift(h("div", { class: "ball__ripple" })); // one-time "tap me" attention ping
+    return h("div", attrs, kids);
   }
 
   function flashEl(elem, cls) {
@@ -358,6 +363,7 @@
   // First tap on the ball in idle.
   function onBallTap() {
     ensureAudio();
+    if (!data.hints.tapCoachShown) { data.hints.tapCoachShown = true; save(); } // learned it; don't show again
     if (isIOSMotion() && !motionAttached && sessionStorage.getItem("shakebox.motionAsked") !== "1") {
       show("motion");
       return;
@@ -452,11 +458,12 @@
 
   /* ============================== screen builders ============================== */
   function screenIdle() {
+    var coach = !data.hints.tapCoachShown; // first-ever home visit: make "tap the ball" obvious
     return h("div", { class: "screen on" }, [
       wordmark(), toysBtn(), soundBtn(),
       h("div", { class: "center-stack" }, [
-        ball({ tap: true, breathe: true, onTap: onBallTap }),
-        h("div", { class: "hint" }, "Shake it"),
+        ball({ tap: true, breathe: true, ripple: coach, onTap: onBallTap }),
+        h("div", { class: "hint" }, coach ? "Tap to shake" : "Shake it"),
       ]),
     ]);
   }

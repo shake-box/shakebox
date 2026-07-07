@@ -138,6 +138,13 @@ button{font-family:inherit;}
   color:rgba(120,150,240,.42);text-shadow:0 0 18px rgba(60,90,240,.4);
 }
 .ball.motion{--ball:min(236px,62vw);}
+/* one-time "tap me" attention ping around the ball (first home visit) */
+.ball__ripple{
+  position:absolute;inset:0;border-radius:50%;
+  border:3px solid rgba(36,64,240,.6);pointer-events:none;
+  animation:tapripple 1.8s ease-out infinite;
+}
+@keyframes tapripple{0%{transform:scale(.96);opacity:.55;}70%{opacity:.12;}100%{transform:scale(1.32);opacity:0;}}
 
 /* Empty-vault ball: window holds a small answer triangle instead of the "8". */
 .ball.empty-ball .ball__win{
@@ -525,7 +532,7 @@ button{font-family:inherit;}
 /* ======================= reduced-motion ======================= */
 @media (prefers-reduced-motion: reduce){
   .ball.breathe,.ball.wobbling,.token.float,.reveal__grain,.reveal__confetti,
-  .bgvibe,.reveal.flood,.token.pop{animation:none !important;}
+  .bgvibe,.reveal.flood,.token.pop,.ball__ripple{animation:none !important;}
   .ball.wobbling{filter:none;}
   .switch__knob{transition:none;}
 }
