@@ -28,6 +28,7 @@
       toys: [],
       mutationsSinceExport: 0,
       lastExportAt: null,
+      hints: { manageToysShown: false },
     };
   }
 
@@ -65,6 +66,8 @@
     if (!("pin" in parsed.settings)) parsed.settings.pin = null;
     if (typeof parsed.mutationsSinceExport !== "number") parsed.mutationsSinceExport = 0;
     if (!("lastExportAt" in parsed)) parsed.lastExportAt = null;
+    if (!parsed.hints || typeof parsed.hints !== "object") parsed.hints = { manageToysShown: false };
+    if (typeof parsed.hints.manageToysShown !== "boolean") parsed.hints.manageToysShown = false;
     return { data: parsed, wasFresh: false };
   }
 
@@ -1113,6 +1116,30 @@
     toastTimer = setTimeout(function () { if (bar.parentNode) bar.remove(); }, 2600);
   }
 
+  /* ============================ one-time coach mark ============================ */
+  // First time on the kid screen (which, for a fresh user, is right after
+  // onboarding), point out the quiet ⚙ so grown-ups can find their way back to
+  // the vault. Shown once per device, then never again.
+  function maybeCoachMark() {
+    if (data.hints.manageToysShown) return;
+    var mark = h("div", { class: "coach" }, "Add or manage toys here");
+    app.appendChild(mark);
+    data.hints.manageToysShown = true;
+    save();
+    var t;
+    function dismiss() {
+      clearTimeout(t);
+      document.removeEventListener("pointerdown", onTap, true);
+      mark.classList.add("leaving");
+      setTimeout(function () { if (mark.parentNode) mark.remove(); }, 400);
+    }
+    function onTap() { dismiss(); }
+    t = setTimeout(dismiss, 5000);
+    // delay the outside-tap listener a tick so the tap that navigated here
+    // doesn't instantly close it
+    setTimeout(function () { document.addEventListener("pointerdown", onTap, true); }, 60);
+  }
+
   /* =============================== master render =============================== */
   function render() {
     app.textContent = "";
@@ -1134,6 +1161,7 @@
     if (state.addOpen && (view === "vault" || view === "welcome")) {
       app.appendChild(addSheet());
     }
+    if (view === "idle" || view === "empty") maybeCoachMark();
     if (!storageOK) {
       app.appendChild(h("div", { class: "storage-warn" },
         "Can't save on this device — toys will be forgotten when you close the app."));

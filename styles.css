@@ -71,7 +71,7 @@ button{font-family:inherit;}
   width:46px;height:46px;display:flex;align-items:center;justify-content:center;
   background:none;border:none;border-radius:12px;cursor:pointer;
 }
-.corner-btn.left{left:16px;color:rgba(20,22,31,.24);font-size:20px;}
+.corner-btn.left{left:16px;color:rgba(20,22,31,.4);font-size:20px;}
 .corner-btn.right{right:16px;color:rgba(20,22,31,.5);}
 
 .center-stack{
@@ -80,6 +80,24 @@ button{font-family:inherit;}
 }
 .hint{font-size:19px;font-weight:500;color:rgba(20,22,31,.55);}
 .hint.dim{color:rgba(20,22,31,.45);letter-spacing:.02em;}
+
+/* one-time coach mark pointing at the ⚙ (shown once, after onboarding) */
+.coach{
+  position:absolute;z-index:70;
+  top:calc(70px + env(safe-area-inset-top));left:14px;
+  max-width:230px;background:var(--ink);color:#fff;
+  font-size:13.5px;font-weight:500;line-height:1.32;
+  padding:10px 13px;border-radius:12px;
+  box-shadow:0 12px 28px -10px rgba(20,22,31,.5);
+  animation:coachin .3s ease both;
+}
+.coach::before{
+  content:'';position:absolute;top:-5px;left:22px;width:12px;height:12px;
+  background:var(--ink);border-radius:2px;transform:rotate(45deg);
+}
+.coach.leaving{animation:coachout .4s ease both;}
+@keyframes coachin{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+@keyframes coachout{from{opacity:1;}to{opacity:0;transform:translateY(-6px);}}
 
 /* ============================== the 8-ball ============================== */
 .ball{
@@ -504,7 +522,7 @@ button{font-family:inherit;}
 /* ======================= reduced-motion ======================= */
 @media (prefers-reduced-motion: reduce){
   .ball.breathe,.ball.wobbling,.token.float,.reveal__grain,.reveal__confetti,
-  .bgvibe,.reveal.flood,.token.pop{animation:none !important;}
+  .bgvibe,.reveal.flood,.token.pop,.coach,.coach.leaving{animation:none !important;}
   .ball.wobbling{filter:none;}
   .switch__knob{transition:none;}
 }

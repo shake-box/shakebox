@@ -1,5 +1,5 @@
 /* Shakebox service worker — cache-first, versioned. Bump CACHE on any release. */
-var CACHE = "shakebox-v1";
+var CACHE = "shakebox-v2";
 
 var ASSETS = [
   ".",
