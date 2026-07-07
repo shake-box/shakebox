@@ -89,17 +89,24 @@ behavior lives in **`app.js`**. If you edit `app.js` or `sw.js`, bump the
 
 ---
 
-## How it's hosted (Cloudflare Pages)
+## How it's hosted (Cloudflare)
 
-The app is a set of plain files — no build step. It's hosted on **Cloudflare
-Pages**, connected to this project's GitHub repository:
+The app is a set of plain files — no build step. It's hosted on **Cloudflare**
+as a **Workers Static Assets** project, connected to this project's GitHub
+repository. (Cloudflare's "Connect to Git" flow uses Workers for static sites;
+for a zero-build app like this it serves the files straight from the edge, and
+static requests are free.)
 
-- **Build command:** *(none — leave empty)*
-- **Build output directory:** the repository root (`/`)
+The whole configuration is the small [`wrangler.jsonc`](wrangler.jsonc) file:
+it just tells Cloudflare to serve every file in the repository root
+(`"assets": { "directory": "." }`). There is no build command and no server
+code.
 
-Every time you push a change to the `main` branch on GitHub, Cloudflare Pages
-redeploys the site automatically within a minute or so. There is nothing to
-compile. To publish a change made in Claude Code, commit and push it; that's it.
+Every time you push a change to the `main` branch on GitHub, Cloudflare
+redeploys the site automatically within a minute or so. To publish a change made
+in Claude Code, commit and push it; that's it. The live address is
+`https://shakebox.shakebox-admin.workers.dev/` (you can also attach your own
+custom domain from the Cloudflare dashboard).
 
 ---
 
@@ -127,6 +134,7 @@ Then open `http://localhost:4599` in your browser.
 | `seed-toys.js` | The starter-pack toys + emoji guesses. **Safe to edit.** |
 | `manifest.json` | Makes it installable as an app. |
 | `sw.js` | The service worker — makes it work offline. |
+| `wrangler.jsonc` | Tells Cloudflare to serve the files. Not part of the app itself. |
 | `fonts/` | The two fonts, stored locally (nothing loaded from the internet). |
 | `icons/` | The app icons. |
 

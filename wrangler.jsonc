@@ -1,0 +1,12 @@
+{
+  // Cloudflare Workers — Static Assets config for Shakebox.
+  // Shakebox has no server code: this Worker just serves the repo's static
+  // files (index.html, app.js, styles.css, fonts, icons, etc.) from the edge.
+  // Its only job is to make `git push` to `main` deploy deterministically.
+  "$schema": "https://developers.cloudflare.com/workers/wrangler/configuration/schema.json",
+  "name": "shakebox",
+  "compatibility_date": "2026-07-07",
+  "assets": {
+    "directory": "."
+  }
+}
