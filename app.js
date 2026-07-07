@@ -21,6 +21,8 @@
   var deferredInstallPrompt = null;
   var canInstall = false;             // Android/desktop Chrome fired beforeinstallprompt
   var sawRevealThisSession = false;   // don't nudge on cold open, only after they've played
+  var armedThisLoad = false;          // iOS: re-granted motion this page load (shake was lost then restored)
+  var shakeTipShownThisLoad = false;  // show the "install via Safari" tip at most once per app-open
 
   /* ============================= storage module ============================= */
   var storageOK = true; // flips false if localStorage throws (private Safari)
@@ -33,7 +35,10 @@
       toys: [],
       mutationsSinceExport: 0,
       lastExportAt: null,
-      hints: { tapCoachShown: false, installNudgeDone: false },
+      hints: {
+        tapCoachShown: false, installNudgeDone: false,
+        motionGranted: false, motionReArms: 0, shakeTipDismissed: false, shakeTipCount: 0,
+      },
     };
   }
 
@@ -74,6 +79,10 @@
     if (!parsed.hints || typeof parsed.hints !== "object") parsed.hints = {};
     if (typeof parsed.hints.tapCoachShown !== "boolean") parsed.hints.tapCoachShown = false;
     if (typeof parsed.hints.installNudgeDone !== "boolean") parsed.hints.installNudgeDone = false;
+    if (typeof parsed.hints.motionGranted !== "boolean") parsed.hints.motionGranted = false;
+    if (typeof parsed.hints.motionReArms !== "number") parsed.hints.motionReArms = 0;
+    if (typeof parsed.hints.shakeTipDismissed !== "boolean") parsed.hints.shakeTipDismissed = false;
+    if (typeof parsed.hints.shakeTipCount !== "number") parsed.hints.shakeTipCount = 0;
     return { data: parsed, wasFresh: false };
   }
 
@@ -374,9 +383,10 @@
   function onBallTap() {
     ensureAudio();
     if (!data.hints.tapCoachShown) { data.hints.tapCoachShown = true; save(); } // learned it; don't show again
-    if (isIOSMotion() && !motionAttached && sessionStorage.getItem("shakebox.motionAsked") !== "1") {
-      show("motion");
-      return;
+    if (isIOSMotion() && !motionAttached) {
+      // iOS drops motion on every page reload (and Chrome-iOS reloads a lot).
+      if (data.hints.motionGranted) { reArmMotion(); return; }  // previously enabled -> silently restore
+      if (sessionStorage.getItem("shakebox.motionAsked") !== "1") { show("motion"); return; } // first-time card
     }
     doShake();
   }
@@ -385,13 +395,27 @@
     sessionStorage.setItem("shakebox.motionAsked", "1");
     if (isIOSMotion()) {
       DeviceMotionEvent.requestPermission().then(function (res) {
-        if (res === "granted") { attachMotion(); doShake(); }
+        if (res === "granted") { attachMotion(); data.hints.motionGranted = true; save(); doShake(); }
         else { show(kidEntry()); }
       }).catch(function () { show(kidEntry()); });
     } else {
       attachMotion();
       doShake();
     }
+  }
+  // After a reload, silently re-request motion (iOS re-grants without a dialog once approved).
+  // Runs inside the tap gesture, so requestPermission is allowed. Counts as a "shake was lost" event.
+  function reArmMotion() {
+    DeviceMotionEvent.requestPermission().then(function (res) {
+      if (res === "granted") {
+        attachMotion();
+        data.hints.motionGranted = true;
+        data.hints.motionReArms = (data.hints.motionReArms || 0) + 1;
+        armedThisLoad = true;
+        save();
+      }
+      doShake();
+    }).catch(function () { doShake(); });
   }
   function skipMotion() {
     sessionStorage.setItem("shakebox.motionAsked", "1");
@@ -1155,14 +1179,8 @@
     return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
       window.navigator.standalone === true;
   }
-  function installEligible() {
-    if (!storageOK) return false;                    // can't even persist toys — don't nudge
-    if (isStandalone()) return false;                // already installed
-    if (data.hints.installNudgeDone) return false;   // one-time
-    if (canInstall) return true;                     // Android/desktop Chrome captured the prompt
-    if (window.navigator.standalone === false) return true; // iOS Safari, in a browser tab
-    return false;
-  }
+  function iosInBrowser() { return window.navigator.standalone === false; }         // iOS WebKit, in a tab
+  function isNonSafariIOS() { return /CriOS|FxiOS|EdgiOS|OPiOS|GSA/i.test(navigator.userAgent); } // Chrome/etc on iOS
   function promptInstall() {
     var p = deferredInstallPrompt;
     deferredInstallPrompt = null; canInstall = false;
@@ -1173,7 +1191,21 @@
     if (b) b.remove();
   }
   function maybeInstallBanner() {
-    if (!sawRevealThisSession || !installEligible()) return;
+    if (!storageOK || isStandalone()) return;
+    // Priority 1: iOS shake keeps resetting after tab reloads -> nudge a real install (via Safari) to stop it.
+    // Only after it's clearly recurring (2nd+ re-arm), once per app-open, capped, and never after dismissal.
+    if (iosInBrowser() && armedThisLoad && !shakeTipShownThisLoad &&
+        (data.hints.motionReArms || 0) >= 2 && !data.hints.shakeTipDismissed &&
+        (data.hints.shakeTipCount || 0) < 3) {
+      showShakeTip();
+      return;
+    }
+    // Priority 2: generic "add to home screen", once, after the first reveal.
+    if (sawRevealThisSession && !data.hints.installNudgeDone && (canInstall || iosInBrowser())) {
+      showInstallNudge();
+    }
+  }
+  function showInstallNudge() {
     var bar;
     if (canInstall) {
       // Android / desktop Chrome: a real install action.
@@ -1193,6 +1225,21 @@
     }
     app.appendChild(bar);
     data.hints.installNudgeDone = true; // shown once
+    save();
+  }
+  function showShakeTip() {
+    // Chrome/etc-iOS "Add to Home Screen" makes a shortcut that still recycles, so send them to Safari.
+    var msg = isNonSafariIOS()
+      ? "Shake keeps turning off in this browser. Open " + location.host + " in Safari, then Add to Home Screen — the installed app keeps shake on."
+      : "Keep turning shake back on? Add Shakebox to your Home Screen (Share → Add to Home Screen) and it’ll stick.";
+    var bar = h("div", { class: "install-bar" }, [
+      h("span", { class: "install-bar__ico", html: ICON.share }),
+      h("span", { class: "install-bar__text" }, msg),
+      h("button", { class: "install-bar__x", "aria-label": "Dismiss", onclick: function () { data.hints.shakeTipDismissed = true; save(); dismissInstallBar(); } }, "×"),
+    ]);
+    app.appendChild(bar);
+    shakeTipShownThisLoad = true;
+    data.hints.shakeTipCount = (data.hints.shakeTipCount || 0) + 1;
     save();
   }
 
