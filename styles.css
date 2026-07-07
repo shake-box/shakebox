@@ -70,6 +70,8 @@ button{font-family:inherit;}
   position:absolute;top:calc(18px + env(safe-area-inset-top));
   width:46px;height:46px;display:flex;align-items:center;justify-content:center;
   background:none;border:none;border-radius:12px;cursor:pointer;
+  /* sit above the full-screen .center-stack so corner taps reach the buttons */
+  z-index:20;
 }
 .corner-btn.left{left:16px;color:rgba(20,22,31,.4);font-size:20px;}
 .corner-btn.right{right:16px;color:rgba(20,22,31,.5);}
