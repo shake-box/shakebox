@@ -10,7 +10,6 @@
   var DATA_VERSION = 1;
   var PIN_LENGTH = 4;
   var UNDO_MS = 5000;
-  var NAG_AFTER = 10; // mutations since last export
 
   var seed = window.SHAKEBOX_SEED || { CATEGORIES: [], STARTER_TOYS: [], EMOJI_KEYWORDS: [] };
 
@@ -100,7 +99,6 @@
     editingId: null,
     rowMenuId: null,
     undo: null,         // { toy, index, timer }
-    nagDismissed: false,
     // add sheet
     addOpen: false,
     addQuery: "",
@@ -730,13 +728,6 @@
       h("button", { class: "btn-add", onclick: function () { openAddSheet(); } }, [icon("plus"), "Add a toy"]));
 
     var kids = [head, addBtn];
-
-    if (data.mutationsSinceExport >= NAG_AFTER && !state.nagDismissed) {
-      kids.push(h("div", { style: "padding:12px 0 0" }, h("div", { class: "nag" }, [
-        h("span", {}, "You've made a lot of changes. Download a backup?"),
-        h("button", { class: "nag__x", "aria-label": "Dismiss", onclick: function () { state.nagDismissed = true; render(); } }, "×"),
-      ])));
-    }
 
     if (showSearch) {
       var searchInput = h("input", {
