@@ -99,6 +99,7 @@
     undo: null,         // { toy, index, timer }
     // add sheet
     addOpen: false,
+    addFromWelcome: false, // true when the sheet was opened from first-run onboarding
     addQuery: "",
     addSession: {},     // key(lowername) -> true for toys added during this sheet session
     addNet: 0,          // net toys added this session (for the counter)
@@ -545,7 +546,7 @@
         h("div", { class: "welcome__sub" }, "Add everything, even the stuff at the back of the closet."),
       ]),
       h("div", { class: "welcome__cta" }, [
-        h("button", { class: "btn-primary", onclick: function () { openAddSheet(); } }, "Start adding toys"),
+        h("button", { class: "btn-primary", onclick: function () { openAddSheet(true); } }, "Start adding toys"),
       ]),
     ]);
   }
@@ -795,8 +796,9 @@
   }
 
   /* -------------------------------- add-a-toy sheet -------------------------------- */
-  function openAddSheet() {
+  function openAddSheet(fromWelcome) {
     state.addOpen = true;
+    state.addFromWelcome = !!fromWelcome;
     state.addQuery = "";
     state.addSession = {};
     state.addNet = 0;
@@ -812,6 +814,8 @@
   }
   function closeAddSheet() {
     state.addOpen = false;
+    // First-run: finishing setup goes forward to the Shakebox home, not "back" to the vault.
+    if (state.addFromWelcome) { state.addFromWelcome = false; show(kidEntry()); return; }
     render();
   }
 
@@ -964,7 +968,8 @@
       h("div", { class: "add-search" }, [icon("search"), searchInput]),
     ]);
 
-    var footer = h("div", { class: "sheet__footer" }, h("button", { class: "btn-ink", onclick: closeAddSheet }, "Done"));
+    var doneLabel = state.addFromWelcome ? "Start shaking" : "Done";
+    var footer = h("div", { class: "sheet__footer" }, h("button", { class: "btn-ink", onclick: closeAddSheet }, doneLabel));
 
     var sheet = h("div", { class: "sheet" }, [top, buildAddBody(), footer]);
     return h("div", { class: "sheet-overlay" }, [behind, scrim, sheet]);
