@@ -17,6 +17,11 @@
   var app = document.getElementById("app");
   var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
+  // Add-to-home-screen nudge — device-appropriate, shown once after the first reveal.
+  var deferredInstallPrompt = null;
+  var canInstall = false;             // Android/desktop Chrome fired beforeinstallprompt
+  var sawRevealThisSession = false;   // don't nudge on cold open, only after they've played
+
   /* ============================= storage module ============================= */
   var storageOK = true; // flips false if localStorage throws (private Safari)
   var mem = null;        // in-memory blob when storage unavailable
@@ -28,7 +33,7 @@
       toys: [],
       mutationsSinceExport: 0,
       lastExportAt: null,
-      hints: { tapCoachShown: false },
+      hints: { tapCoachShown: false, installNudgeDone: false },
     };
   }
 
@@ -66,8 +71,9 @@
     if (!("pin" in parsed.settings)) parsed.settings.pin = null;
     if (typeof parsed.mutationsSinceExport !== "number") parsed.mutationsSinceExport = 0;
     if (!("lastExportAt" in parsed)) parsed.lastExportAt = null;
-    if (!parsed.hints || typeof parsed.hints !== "object") parsed.hints = { tapCoachShown: false };
+    if (!parsed.hints || typeof parsed.hints !== "object") parsed.hints = {};
     if (typeof parsed.hints.tapCoachShown !== "boolean") parsed.hints.tapCoachShown = false;
+    if (typeof parsed.hints.installNudgeDone !== "boolean") parsed.hints.installNudgeDone = false;
     return { data: parsed, wasFresh: false };
   }
 
@@ -159,6 +165,8 @@
     del: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 5H8L2 12l6 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"></path><path d="M14 9l-4 6M10 9l4 6"></path></svg>',
     chevron: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>',
     toys: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.6"></rect><rect x="14" y="3" width="7" height="7" rx="1.6"></rect><rect x="3" y="14" width="7" height="7" rx="1.6"></rect><rect x="14" y="14" width="7" height="7" rx="1.6"></rect></svg>',
+    addbox: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4.5"></rect><path d="M12 8.5v7M8.5 12h7"></path></svg>',
+    share: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13"></path><path d="M8 7l4-4 4 4"></path><path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"></path></svg>',
     check: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>',
     edit: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>',
     trash: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"></path></svg>',
@@ -343,6 +351,7 @@
       vibrate(90);
       playThunk();
       show("reveal");
+      sawRevealThisSession = true;
       motionCooldownUntil = performance.now() + REVEAL_ARM_MS; // arm shake-to-reroll
       return;
     }
@@ -354,6 +363,7 @@
       state.revealed = pickToy();
       recordPick(state.revealed);
       show("reveal");
+      sawRevealThisSession = true;
       vibrate(90);
       playThunk();
       motionCooldownUntil = performance.now() + REVEAL_ARM_MS; // arm shake-to-reroll
@@ -1140,6 +1150,52 @@
     toastTimer = setTimeout(function () { if (bar.parentNode) bar.remove(); }, 2600);
   }
 
+  /* ============================ install-to-home nudge ============================ */
+  function isStandalone() {
+    return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+      window.navigator.standalone === true;
+  }
+  function installEligible() {
+    if (!storageOK) return false;                    // can't even persist toys — don't nudge
+    if (isStandalone()) return false;                // already installed
+    if (data.hints.installNudgeDone) return false;   // one-time
+    if (canInstall) return true;                     // Android/desktop Chrome captured the prompt
+    if (window.navigator.standalone === false) return true; // iOS Safari, in a browser tab
+    return false;
+  }
+  function promptInstall() {
+    var p = deferredInstallPrompt;
+    deferredInstallPrompt = null; canInstall = false;
+    if (p && p.prompt) p.prompt();
+  }
+  function dismissInstallBar() {
+    var b = app.querySelector(".install-bar");
+    if (b) b.remove();
+  }
+  function maybeInstallBanner() {
+    if (!sawRevealThisSession || !installEligible()) return;
+    var bar;
+    if (canInstall) {
+      // Android / desktop Chrome: a real install action.
+      bar = h("div", { class: "install-bar" }, [
+        h("span", { class: "install-bar__ico", html: ICON.addbox }),
+        h("span", { class: "install-bar__text" }, "Add Shakebox to your home screen."),
+        h("button", { class: "install-bar__cta", onclick: function () { promptInstall(); dismissInstallBar(); } }, "Install"),
+        h("button", { class: "install-bar__x", "aria-label": "Dismiss", onclick: dismissInstallBar }, "×"),
+      ]);
+    } else {
+      // iOS Safari: no install API — tell them the Share -> Add to Home Screen path.
+      bar = h("div", { class: "install-bar" }, [
+        h("span", { class: "install-bar__ico", html: ICON.share }),
+        h("span", { class: "install-bar__text" }, "Add Shakebox to your home screen: tap Share, then “Add to Home Screen.”"),
+        h("button", { class: "install-bar__x", "aria-label": "Dismiss", onclick: dismissInstallBar }, "×"),
+      ]);
+    }
+    app.appendChild(bar);
+    data.hints.installNudgeDone = true; // shown once
+    save();
+  }
+
   /* =============================== master render =============================== */
   function render() {
     app.textContent = "";
@@ -1161,6 +1217,7 @@
     if (state.addOpen && (view === "vault" || view === "welcome")) {
       app.appendChild(addSheet());
     }
+    if (view === "idle") maybeInstallBanner();
     if (!storageOK) {
       app.appendChild(h("div", { class: "storage-warn" },
         "Can't save on this device — toys will be forgotten when you close the app."));
@@ -1178,6 +1235,18 @@
   // keep the reveal float / reduced-motion in sync if the OS setting changes mid-session
   reducedMotion.addEventListener && reducedMotion.addEventListener("change", function () {
     if (state.view === "idle" || state.view === "empty") render();
+  });
+
+  // Capture the Android/desktop install prompt for later; clear it once installed.
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    canInstall = true;
+  });
+  window.addEventListener("appinstalled", function () {
+    deferredInstallPrompt = null; canInstall = false;
+    data.hints.installNudgeDone = true; save();
+    dismissInstallBar();
   });
 
   /* ================================== init ================================== */

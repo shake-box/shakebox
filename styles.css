@@ -498,6 +498,21 @@ button{font-family:inherit;}
 }
 .snackbar__btn:hover{color:#b9c6ff;}
 
+/* add-to-home-screen nudge (home screen, bottom) */
+.install-bar{
+  position:absolute;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:75;
+  background:#fff;border:1px solid rgba(20,22,31,.1);border-radius:16px;
+  padding:12px 12px 12px 14px;display:flex;align-items:center;gap:11px;
+  box-shadow:0 16px 36px -12px rgba(20,22,31,.35);animation:sheetup .3s ease both;
+}
+.install-bar__ico{display:flex;color:var(--oracle);flex:none;}
+.install-bar__text{flex:1;font-size:13.5px;line-height:1.35;color:var(--ink);}
+.install-bar__cta{
+  flex:none;background:var(--oracle);color:#fff;border:none;border-radius:11px;padding:9px 15px;
+  font-family:'Schibsted Grotesk',sans-serif;font-weight:600;font-size:14px;cursor:pointer;
+}
+.install-bar__x{flex:none;background:none;border:none;color:rgba(20,22,31,.4);cursor:pointer;font-size:20px;line-height:1;padding:2px 6px;}
+
 /* persistent "can't save" notice */
 .storage-warn{
   position:absolute;left:0;right:0;bottom:0;z-index:90;background:#b00020;color:#fff;
@@ -540,4 +555,16 @@ button{font-family:inherit;}
 /* narrow phones */
 @media (max-width:340px){
   .motion-card{width:88vw;}
+}
+
+/* tablets (portrait, roomy) — give the toy more presence and use the screen */
+@media (min-width:700px) and (min-height:800px){
+  #app{max-width:640px;}
+  .ball{--ball:min(440px,66vw,54vh);}
+  .hint{font-size:22px;}
+  .token__tri{width:300px;height:270px;padding-bottom:40px;}
+  .token__emoji{font-size:78px;}
+  .token__name{font-size:26px;width:200px;}
+  .reveal__stage{bottom:230px;}
+  .reveal__confetti{top:250px;}
 }
