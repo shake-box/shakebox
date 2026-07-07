@@ -546,7 +546,6 @@
       ]),
       h("div", { class: "welcome__cta" }, [
         h("button", { class: "btn-primary", onclick: function () { openAddSheet(); } }, "Start adding toys"),
-        h("div", { class: "welcome__foot" }, "Pick from the starter pack — about five minutes for 25 toys."),
       ]),
     ]);
   }

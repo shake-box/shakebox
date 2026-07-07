@@ -476,7 +476,6 @@ button{font-family:inherit;}
 .welcome__title{margin-top:22px;font-family:'Unbounded',sans-serif;font-weight:700;font-size:29px;line-height:1.1;letter-spacing:-.01em;}
 .welcome__sub{margin-top:14px;font-size:16px;line-height:1.5;color:rgba(20,22,31,.6);max-width:280px;}
 .welcome__cta{position:absolute;left:28px;right:28px;bottom:calc(40px + env(safe-area-inset-bottom));}
-.welcome__foot{margin-top:14px;text-align:center;font-size:13px;color:rgba(20,22,31,.42);}
 
 /* ============================== snackbar / toast ============================== */
 .snackbar{
