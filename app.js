@@ -21,8 +21,6 @@
   var deferredInstallPrompt = null;
   var canInstall = false;             // Android/desktop Chrome fired beforeinstallprompt
   var sawRevealThisSession = false;   // don't nudge on cold open, only after they've played
-  var armedThisLoad = false;          // iOS: re-granted motion this page load (shake was lost then restored)
-  var shakeTipShownThisLoad = false;  // show the "install via Safari" tip at most once per app-open
 
   /* ============================= storage module ============================= */
   var storageOK = true; // flips false if localStorage throws (private Safari)
@@ -35,10 +33,7 @@
       toys: [],
       mutationsSinceExport: 0,
       lastExportAt: null,
-      hints: {
-        tapCoachShown: false, installNudgeDone: false,
-        motionGranted: false, motionReArms: 0, shakeTipDismissed: false, shakeTipCount: 0,
-      },
+      hints: { tapCoachShown: false, installNudgeDone: false },
     };
   }
 
@@ -79,10 +74,6 @@
     if (!parsed.hints || typeof parsed.hints !== "object") parsed.hints = {};
     if (typeof parsed.hints.tapCoachShown !== "boolean") parsed.hints.tapCoachShown = false;
     if (typeof parsed.hints.installNudgeDone !== "boolean") parsed.hints.installNudgeDone = false;
-    if (typeof parsed.hints.motionGranted !== "boolean") parsed.hints.motionGranted = false;
-    if (typeof parsed.hints.motionReArms !== "number") parsed.hints.motionReArms = 0;
-    if (typeof parsed.hints.shakeTipDismissed !== "boolean") parsed.hints.shakeTipDismissed = false;
-    if (typeof parsed.hints.shakeTipCount !== "number") parsed.hints.shakeTipCount = 0;
     return { data: parsed, wasFresh: false };
   }
 
@@ -188,7 +179,6 @@
     if (opts.tap) cls += " tap";
     if (opts.breathe) cls += " breathe";
     if (opts.wobbling) cls += " wobbling";
-    if (opts.motion) cls += " motion";
     if (opts.empty) cls += " empty-ball";
     var winChildren;
     if (opts.empty) {
@@ -380,46 +370,25 @@
   }
 
   // First tap on the ball in idle.
+  // Tapping the ball always just reveals — no permission, no dialog, ever.
   function onBallTap() {
     ensureAudio();
     if (!data.hints.tapCoachShown) { data.hints.tapCoachShown = true; save(); } // learned it; don't show again
-    if (isIOSMotion() && !motionAttached) {
-      // iOS drops motion on every page reload (and Chrome-iOS reloads a lot).
-      if (data.hints.motionGranted) { reArmMotion(); return; }  // previously enabled -> silently restore
-      if (sessionStorage.getItem("shakebox.motionAsked") !== "1") { show("motion"); return; } // first-time card
-    }
     doShake();
   }
 
+  // Physical shake is an explicit, per-session opt-in on iOS (Apple resets the
+  // permission every launch, so we never auto-prompt — the user chooses it).
   function enableShake() {
-    sessionStorage.setItem("shakebox.motionAsked", "1");
     if (isIOSMotion()) {
       DeviceMotionEvent.requestPermission().then(function (res) {
-        if (res === "granted") { attachMotion(); data.hints.motionGranted = true; save(); doShake(); }
-        else { show(kidEntry()); }
-      }).catch(function () { show(kidEntry()); });
+        if (res === "granted") { attachMotion(); render(); toast("Shake is on — give it a shake!"); }
+        else render(); // declined: leave the affordance so they can try again, tapping still works
+      }).catch(function () { render(); });
     } else {
       attachMotion();
-      doShake();
+      render();
     }
-  }
-  // After a reload, silently re-request motion (iOS re-grants without a dialog once approved).
-  // Runs inside the tap gesture, so requestPermission is allowed. Counts as a "shake was lost" event.
-  function reArmMotion() {
-    DeviceMotionEvent.requestPermission().then(function (res) {
-      if (res === "granted") {
-        attachMotion();
-        data.hints.motionGranted = true;
-        data.hints.motionReArms = (data.hints.motionReArms || 0) + 1;
-        armedThisLoad = true;
-        save();
-      }
-      doShake();
-    }).catch(function () { doShake(); });
-  }
-  function skipMotion() {
-    sessionStorage.setItem("shakebox.motionAsked", "1");
-    show(kidEntry());
   }
 
   /* ================================ toy mutations ================================ */
@@ -492,27 +461,17 @@
 
   /* ============================== screen builders ============================== */
   function screenIdle() {
-    var coach = !data.hints.tapCoachShown; // first-ever home visit: make "tap the ball" obvious
+    var coach = !data.hints.tapCoachShown;             // first-ever home visit: make "tap the ball" obvious
+    var shakeOff = isIOSMotion() && !motionAttached;   // iOS, physical shake not turned on this session
+    var foot = [ h("div", { class: "hint" }, (coach || shakeOff) ? "Tap to shake" : "Shake it") ];
+    if (shakeOff) {
+      foot.push(h("button", { class: "shake-toggle", onclick: enableShake }, "Turn on phone shake"));
+    }
     return h("div", { class: "screen on" }, [
       wordmark(), toysBtn(), soundBtn(),
       h("div", { class: "center-stack" }, [
         ball({ tap: true, breathe: true, ripple: coach, onTap: onBallTap }),
-        h("div", { class: "hint" }, coach ? "Tap to shake" : "Shake it"),
-      ]),
-    ]);
-  }
-
-  function screenMotion() {
-    return h("div", { class: "screen on" }, [
-      wordmark(),
-      h("div", { class: "center-stack", style: "gap:40px" }, [
-        ball({ tap: true, breathe: true, motion: true, onTap: enableShake }),
-        h("div", { class: "motion-card" }, [
-          h("div", { class: "motion-card__title" }, "Want to really shake it?"),
-          h("div", { class: "motion-card__sub" }, "Turn on motion so a real shake sets it off."),
-          h("button", { class: "btn-primary", onclick: enableShake }, "Enable shake"),
-          h("button", { class: "link-quiet", onclick: skipMotion }, "or just tap the ball anytime"),
-        ]),
+        h("div", { class: "idle-foot" }, foot),
       ]),
     ]);
   }
@@ -1180,7 +1139,6 @@
       window.navigator.standalone === true;
   }
   function iosInBrowser() { return window.navigator.standalone === false; }         // iOS WebKit, in a tab
-  function isNonSafariIOS() { return /CriOS|FxiOS|EdgiOS|OPiOS|GSA/i.test(navigator.userAgent); } // Chrome/etc on iOS
   function promptInstall() {
     var p = deferredInstallPrompt;
     deferredInstallPrompt = null; canInstall = false;
@@ -1192,15 +1150,7 @@
   }
   function maybeInstallBanner() {
     if (!storageOK || isStandalone()) return;
-    // Priority 1: iOS shake keeps resetting after tab reloads -> nudge a real install (via Safari) to stop it.
-    // Only after it's clearly recurring (2nd+ re-arm), once per app-open, capped, and never after dismissal.
-    if (iosInBrowser() && armedThisLoad && !shakeTipShownThisLoad &&
-        (data.hints.motionReArms || 0) >= 2 && !data.hints.shakeTipDismissed &&
-        (data.hints.shakeTipCount || 0) < 3) {
-      showShakeTip();
-      return;
-    }
-    // Priority 2: generic "add to home screen", once, after the first reveal.
+    // Generic "add to home screen", once, after the first reveal (convenience/offline).
     if (sawRevealThisSession && !data.hints.installNudgeDone && (canInstall || iosInBrowser())) {
       showInstallNudge();
     }
@@ -1227,21 +1177,6 @@
     data.hints.installNudgeDone = true; // shown once
     save();
   }
-  function showShakeTip() {
-    // Chrome/etc-iOS "Add to Home Screen" makes a shortcut that still recycles, so send them to Safari.
-    var msg = isNonSafariIOS()
-      ? "Shake keeps turning off in this browser. Open " + location.host + " in Safari, then Add to Home Screen — the installed app keeps shake on."
-      : "Keep turning shake back on? Add Shakebox to your Home Screen (Share → Add to Home Screen) and it’ll stick.";
-    var bar = h("div", { class: "install-bar" }, [
-      h("span", { class: "install-bar__ico", html: ICON.share }),
-      h("span", { class: "install-bar__text" }, msg),
-      h("button", { class: "install-bar__x", "aria-label": "Dismiss", onclick: function () { data.hints.shakeTipDismissed = true; save(); dismissInstallBar(); } }, "×"),
-    ]);
-    app.appendChild(bar);
-    shakeTipShownThisLoad = true;
-    data.hints.shakeTipCount = (data.hints.shakeTipCount || 0) + 1;
-    save();
-  }
 
   /* =============================== master render =============================== */
   function render() {
@@ -1250,7 +1185,6 @@
     var screen;
     switch (view) {
       case "idle": screen = screenIdle(); break;
-      case "motion": screen = screenMotion(); break;
       case "shaking": screen = screenShaking(); break;
       case "reveal": screen = screenReveal(); break;
       case "empty": screen = screenEmpty(); break;

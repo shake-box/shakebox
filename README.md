@@ -20,6 +20,11 @@ normal app.
 - "Go play" returns home; "Shake again" (or another shake of the phone) picks
   another.
 - If the toy list is empty it invites you to *"Add some toys to get started."*
+- On iPhone/iPad, tapping the ball always works. Physical shaking needs Apple's
+  one-time-per-visit permission, so there's a small **"Turn on phone shake"**
+  button on the home screen — tap it once each session if you want to shake.
+  (Apple resets that permission every time the app is reopened; that's an iOS
+  rule, not something the app can change.)
 
 **The toy list (tap "Toys" in the top-left corner)**
 - **Toy vault** — add, rename, pause, or delete toys. Paused toys stay in the
